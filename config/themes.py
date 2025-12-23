@@ -1,12 +1,23 @@
 """Preconfigured themes for spectrogram visualization."""
 
+from dataclasses import replace
+
 from modules.spectrogram_visualizer import SpectrogramConfig
 
-# Define preconfigured themes
-THEMES = {
-    "minimal": SpectrogramConfig(
-        # Current styling: Small font title below, transparent, minimal axes
-        # Works well for both linear and polar projections
+
+def minimal(**overrides) -> SpectrogramConfig:
+    """Minimal theme with optional parameter overrides.
+
+    Small font title below, transparent background, minimal axes.
+    Works well for both linear and polar projections.
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with minimal theme settings
+    """
+    base = SpectrogramConfig(
         projection="linear",
         cmap="magma",
         figsize=(11, 5),
@@ -31,9 +42,22 @@ THEMES = {
         tick_size=8,
         output_format="jpg",
         quality=95,
-    ),
-    "scientific": SpectrogramConfig(
-        # Full axes, white background, high contrast for publications
+    )
+    return replace(base, **overrides)
+
+
+def scientific(**overrides) -> SpectrogramConfig:
+    """Scientific theme with optional parameter overrides.
+
+    Full axes, white background, high contrast for publications.
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with scientific theme settings
+    """
+    base = SpectrogramConfig(
         projection="linear",
         cmap="viridis",
         figsize=(12, 6),
@@ -53,9 +77,22 @@ THEMES = {
         tick_size=10,
         output_format="png",
         quality=95,
-    ),
-    "presentation": SpectrogramConfig(
-        # Dark background, vibrant colors, large text for slides
+    )
+    return replace(base, **overrides)
+
+
+def presentation(**overrides) -> SpectrogramConfig:
+    """Presentation theme with optional parameter overrides.
+
+    Dark background, vibrant colors, large text for slides.
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with presentation theme settings
+    """
+    base = SpectrogramConfig(
         projection="linear",
         cmap="plasma",
         figsize=(14, 7),
@@ -75,9 +112,22 @@ THEMES = {
         tick_size=14,
         output_format="png",
         quality=90,
-    ),
-    "polar_minimal": SpectrogramConfig(
-        # Polar version of minimal theme with improved settings
+    )
+    return replace(base, **overrides)
+
+
+def polar_minimal(**overrides) -> SpectrogramConfig:
+    """Polar minimal theme with optional parameter overrides.
+
+    Polar version of minimal theme with improved settings.
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with polar minimal theme settings
+    """
+    base = SpectrogramConfig(
         projection="polar",
         cmap="magma",
         figsize=(10, 10),  # Square for polar
@@ -101,9 +151,22 @@ THEMES = {
         tick_size=8,
         output_format="jpg",
         quality=95,
-    ),
-    "polar_scientific": SpectrogramConfig(
-        # Polar version of scientific theme
+    )
+    return replace(base, **overrides)
+
+
+def polar_scientific(**overrides) -> SpectrogramConfig:
+    """Polar scientific theme with optional parameter overrides.
+
+    Polar version of scientific theme.
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with polar scientific theme settings
+    """
+    base = SpectrogramConfig(
         projection="polar",
         cmap="viridis",
         figsize=(10, 10),
@@ -123,9 +186,22 @@ THEMES = {
         tick_size=10,
         output_format="png",
         quality=95,
-    ),
-    "polar_grayscale": SpectrogramConfig(
-        # High-resolution grayscale polar spectrogram (reference implementation)
+    )
+    return replace(base, **overrides)
+
+
+def polar_grayscale(**overrides) -> SpectrogramConfig:
+    """Polar grayscale theme with optional parameter overrides.
+
+    High-resolution grayscale polar spectrogram (reference implementation).
+
+    Args:
+        **overrides: Any SpectrogramConfig parameter to override
+
+    Returns:
+        SpectrogramConfig with polar grayscale theme settings
+    """
+    base = SpectrogramConfig(
         projection="polar",
         cmap="gray_r",  # Reversed grayscale (black = low, white = high)
         figsize=(12, 12),  # Square for polar
@@ -139,41 +215,11 @@ THEMES = {
         show_axes="none",  # Clean, no axes
         nperseg=2048,  # High resolution STFT
         noverlap=1900,  # Very high overlap for smooth result
-        max_freq=10000,  # Limit to 8kHz for detail
-        polar_inner_radius=0.3,  # Inner hole at 20% radius
+        max_freq=10000,  # Limit to 10kHz for detail
+        polar_inner_radius=0.3,  # Inner hole at 30% radius
         normalize_db=True,  # Normalize dB to 0-1 range
         norm_gamma=1.0,  # No power normalization (already normalized)
         output_format="png",
         quality=95,
-    ),
-}
-
-
-def get_theme(name: str) -> SpectrogramConfig:
-    """
-    Retrieve a preconfigured theme by name.
-
-    Args:
-        name: Theme name (e.g., 'minimal', 'scientific', 'presentation')
-
-    Returns:
-        SpectrogramConfig object for the specified theme
-
-    Raises:
-        ValueError: If theme name is not found
-    """
-    if name not in THEMES:
-        available = ", ".join(THEMES.keys())
-        raise ValueError(f"Theme '{name}' not found. Available themes: {available}")
-
-    return THEMES[name]
-
-
-def list_themes() -> list[str]:
-    """
-    List all available theme names.
-
-    Returns:
-        List of theme names
-    """
-    return list(THEMES.keys())
+    )
+    return replace(base, **overrides)
