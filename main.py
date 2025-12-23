@@ -1,120 +1,186 @@
-import os
-import subprocess
+"""
+Spectrogram Generator - Generate audio spectrograms with flexible configuration.
 
-import matplotlib.pyplot as plt
-import numpy as np
-import soundfile as sf
-from matplotlib.colors import PowerNorm
-from pytubefix import YouTube
+Supports:
+- YouTube URLs or local audio files
+- Linear and polar projections
+- Parameter grids for batch generation
+- Preconfigured themes (minimal, scientific, presentation, etc.)
+"""
+
+from datetime import datetime
+from pathlib import Path
+
+from config.parameters import ParameterGrid, create_filename
+from config.themes import get_theme
+from modules.audio_formatter import AudioPreprocessor
+from modules.audio_loader import AudioLoader
+from modules.spectrogram_visualizer import SpectrogramConfig, SpectrogramGenerator
 
 
-def load_audio_file(youtube_url: str, path: str):
-    # Init the video
-    yt = YouTube(youtube_url)
+def main(
+    source: str,
+    parameter_grid: dict | None = None,
+    theme: str | None = "minimal",
+    trim_start: float = 3.0,
+    output_dir: str | None = None,
+):
+    """
+    Generate spectrograms from audio source with parameter grid support.
 
-    # Extract the first MP4 audio file found
-    mp4_stream = yt.streams.filter(only_audio=True).filter(file_extension="mp4").first()
+    Args:
+        source: YouTube URL or local audio file path
+                Examples:
+                - "https://www.youtube.com/watch?v=..."
+                - "data/audio_test.wav"
+                - "/path/to/audio.flac"
+        parameter_grid: Dict of parameter variations for batch generation
+                       Example: {'cmap': ['viridis', 'magma'], 'dpi': [150, 300]}
+                       If None, generates single spectrogram using theme
+        theme: Base theme name (from config/themes.py)
+               Options: 'minimal', 'scientific', 'presentation',
+                       'polar_minimal', 'polar_scientific'
+        trim_start: Seconds to trim from start of audio
+        output_dir: Custom output directory (defaults to timestamped folder)
+    """
+    print("=" * 60)
+    print("Spectrogram Generator")
+    print("=" * 60)
 
-    if mp4_stream:
-        # Create directory if it doesn't exist
-        output_dir = os.path.dirname(path)
-        os.makedirs(output_dir, exist_ok=True)
+    # 1. Load audio from any source
+    print("\n[1/3] Loading audio from source...")
+    print(f"      Source: {source}")
+    loader = AudioLoader()
+    wav_path = loader.load(source)
+    print(f"      WAV file: {wav_path}")
 
-        # Download as m4a - pytubefix download() takes output_path and filename separately
-        base_filename = os.path.basename(path).replace(".mp4", ".m4a")
-        mp4_stream.download(output_path=output_dir, filename=base_filename)
-        m4a_path = os.path.join(output_dir, base_filename)
+    # 2. Preprocess audio
+    print("\n[2/3] Preprocessing audio...")
+    preprocessor = AudioPreprocessor()
+    audio_data, sample_rate = preprocessor.load_audio(wav_path)
 
-        # Convert m4a to wav using ffmpeg
-        wav_path = path.replace(".mp4", ".wav")
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-i",
-                    m4a_path,
-                    "-acodec",
-                    "pcm_s16le",  # Convert to PCM 16-bit
-                    "-ar",
-                    "44100",  # Sample rate 44.1kHz
-                    "-y",  # Overwrite output file if exists
-                    wav_path,
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"ffmpeg stderr: {e.stderr}")
-            print(f"ffmpeg stdout: {e.stdout}")
-            raise
+    # Trim audio if requested
+    if trim_start > 0:
+        print(f"      Trimming first {trim_start} seconds...")
+        audio_data = preprocessor.trim_audio(
+            audio_data, sample_rate, start_seconds=trim_start
+        )
 
-        return wav_path
+    # Print diagnostics
+    info = preprocessor.get_audio_info(audio_data, sample_rate)
+    print(f"      Sample rate: {info['sample_rate']} Hz")
+    print(f"      Duration: {info['duration']:.2f} seconds")
+    print(f"      Samples: {info['samples']:,}")
+    print(f"      Mean amplitude: {info['mean']:.6f}")
+    print(f"      Median amplitude: {info['median']:.6f}")
+
+    # 3. Generate spectrograms
+    print("\n[3/3] Generating spectrograms...")
+
+    if parameter_grid:
+        # Multi-spectrogram mode: parameter grid
+        print("      Mode: Parameter grid")
+        print(f"      Base theme: {theme}")
+
+        # Get base configuration from theme
+        base_config = get_theme(theme) if theme else SpectrogramConfig()
+
+        # Create parameter grid
+        grid = ParameterGrid(parameter_grid, base_config=base_config)
+        total = grid.count()
+        print(f"      Total combinations: {total}")
+
+        # Create timestamped output directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = (
+            Path(output_dir)
+            if output_dir
+            else Path("output") / f"spectrograms_{timestamp}"
+        )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        print(f"      Output directory: {out_dir}")
+
+        # Generate all combinations
+        print("\n      Generating spectrograms:")
+        for i, params in enumerate(grid.generate_combinations(), 1):
+            config = SpectrogramConfig(**params)
+            generator = SpectrogramGenerator(config)
+            filename = create_filename(params)
+
+            print(f"      [{i}/{total}] {filename}")
+            generator.generate(audio_data, sample_rate, str(out_dir / filename))
+
+        print("\n" + "=" * 60)
+        print(f"✓ Completed! {total} spectrograms saved to:")
+        print(f"  {out_dir}")
+        print("=" * 60)
+
     else:
-        raise ValueError(f"No MP4 stream found for URL: {youtube_url}")
+        # Single spectrogram mode: use theme directly
+        print("      Mode: Single spectrogram")
+        print(f"      Theme: {theme if theme else 'default'}")
 
+        config = get_theme(theme) if theme else SpectrogramConfig()
+        generator = SpectrogramGenerator(config)
 
-def decode_audio(path: str):
-    data, sample_rate = sf.read(path)
+        # Determine output path
+        if output_dir:
+            output_path = output_dir
+        else:
+            theme_name = theme if theme else "default"
+            output_path = f"spectrogram_{theme_name}.{config.output_format}"
 
-    # Convert stereo to mono if needed
-    if len(data.shape) > 1:
-        data = np.mean(data, axis=1)
+        print(f"      Output: {output_path}")
 
-    # If you want the scipy.io.wavfile order (sample_rate, data):
-    sample_rate = int(sample_rate)
+        generator.generate(audio_data, sample_rate, output_path)
 
-    return data, sample_rate
-
-
-def create_spectrogram(data, sample_rate, **kwargs):
-    fig, ax = plt.subplots(figsize=(12, 10), dpi=300)
-
-    plt.specgram(data, Fs=sample_rate, **kwargs)
-    # plt.title("Spectrogram of 22_minutes.flac")
-    plt.axis("off")
-    plt.tight_layout(pad=0)
-    plt.savefig("spectrogram_flac.png", transparent=True, format="png")
-    plt.show()
-
-    return None
-
-
-def main(youtube_url: str):
-    path = "data/audio_test.mp4"
-
-    wav_path = load_audio_file(youtube_url=youtube_url, path=path)
-
-    data, sample_rate = decode_audio(path=wav_path)
-
-    # Run the spectrogram to get the data
-    Pxx, freqs, bins, im = plt.specgram(data, Fs=sample_rate, scale="dB")
-    print(
-        f"Spectrogram range: {10 * np.log10(Pxx.min())} to {10 * np.log10(Pxx.max())} dB"
-    )
-
-    create_spectrogram(
-        data=data,
-        sample_rate=sample_rate,
-        norm=PowerNorm(
-            gamma=4,
-        ),
-        # scale="dB",
-    )
-
-    print(f"Mean: {np.mean(data)}")
-    print(f"Median: {np.median(data)}")
-
-    # Now 'data' is a numpy array, just like scipy.io.wavfile.read() returns
-    print(f"Sample rate: {sample_rate} Hz")
-    print(f"Data shape: {data.shape}")
-    print(f"Data dtype: {data.dtype}")
-    print(f"Duration: {len(data) / sample_rate:.2f} seconds")
-
-    # Access the numpy array
-    print(f"\nFirst 10 samples: {data[:10]}")
-    print(f"Last 10 samples: {data[-10:]}")
+        print("\n" + "=" * 60)
+        print("✓ Completed! Spectrogram saved as:")
+        print(f"  {output_path}")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
-    main("https://www.youtube.com/watch?v=JiPkST80jMU&list=RDJiPkST80jMU")
+    # Example 1: Single spectrogram from local file using minimal theme
+    # main("data/audio_test.wav", theme="minimal")
+
+    # Example 2: Single spectrogram with different theme
+    # main("data/audio_test.wav", theme="scientific")
+
+    # Example 3: Parameter grid from local file (colormap comparison)
+    # main(
+    #     source="data/audio_test.wav",
+    #     parameter_grid={
+    #         "cmap": ["viridis", "magma", "inferno"],
+    #         "projection": ["linear", "polar"],
+    #     },
+    #     theme="minimal",
+    #     trim_start=3.0,
+    # )
+
+    # Example 4: Parameter grid from YouTube URL (requires YouTube download)
+    main(
+        source="https://www.youtube.com/watch?v=QwxYiVXYyVs&list=RDQwxYiVXYyVs&start_radio=1&pp=ygUUMjAwMSBhIHNwYWNlIG9keXNzZXmgBwE%3D",
+        parameter_grid={
+            "cmap": ["gray_r"],
+            "projection": ["polar"],
+            "dpi": [300],
+            "title_font": ["Helvetica", "Arial", "Courier New"],
+            "title": ["Spectrogram", "Audio Visualization", "Frequency Analysis"],
+        },
+        theme="minimal",
+    )
+
+    # Example 5: DPI comparison
+    # main(
+    #     source="data/audio_test.wav",
+    #     parameter_grid={'dpi': [72, 150, 300, 600]},
+    #     theme="minimal"
+    # )
+
+    # Example 6: Gamma comparison
+    # main(
+    #     source="data/audio_test.wav",
+    #     parameter_grid={'norm_gamma': [1, 2, 3, 4, 5, 6, 8, 10]},
+    #     theme="minimal"
+    # )
