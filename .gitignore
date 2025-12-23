@@ -10,10 +10,14 @@ wheels/
 .venv
 
 # Data files
-
 *.jpg
 *.png
 *.svg
+!streamlit_app/assets/theme_previews/*.jpg
+!streamlit_app/assets/theme_previews/*.png
 data/
 
 output/
+
+# Streamlit
+.streamlit/
