@@ -1,12 +1,19 @@
 """Spectrogram visualization with linear and polar projections."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import PowerNorm
 from scipy.signal import spectrogram
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @dataclass
@@ -93,7 +100,7 @@ class SpectrogramGenerator:
 
     def _create_linear_spectrogram(
         self, audio_data: np.ndarray, sample_rate: int
-    ) -> tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """
         Create traditional linear spectrogram using ax.specgram().
 
@@ -137,7 +144,7 @@ class SpectrogramGenerator:
 
     def _create_polar_spectrogram(
         self, audio_data: np.ndarray, sample_rate: int
-    ) -> tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """
         Create polar spectrogram using scipy STFT + pcolormesh on polar axes.
 
@@ -198,7 +205,7 @@ class SpectrogramGenerator:
         # Create polar mesh with appropriate normalization
         if self.config.normalize_db:
             # For normalized data, don't use PowerNorm (data already 0-1)
-            mesh = ax.pcolormesh(
+            ax.pcolormesh(
                 Theta,
                 R,
                 Sxx_norm,
@@ -209,7 +216,7 @@ class SpectrogramGenerator:
             )
         else:
             # For non-normalized data, use PowerNorm
-            mesh = ax.pcolormesh(
+            ax.pcolormesh(
                 Theta,
                 R,
                 Sxx_norm,
@@ -223,7 +230,7 @@ class SpectrogramGenerator:
 
         return fig, ax
 
-    def _apply_styling(self, fig: plt.Figure, ax: plt.Axes, duration: float) -> None:
+    def _apply_styling(self, fig: Figure, ax: Axes, duration: float) -> None:
         """
         Apply consistent styling based on configuration.
 
@@ -261,7 +268,7 @@ class SpectrogramGenerator:
                 horizontalalignment="center",
             )
 
-    def _style_linear_axes(self, ax: plt.Axes, duration: float) -> None:
+    def _style_linear_axes(self, ax: Axes, duration: float) -> None:
         """
         Apply styling for linear spectrogram axes.
 
@@ -327,7 +334,7 @@ class SpectrogramGenerator:
                 labelbottom=False,
             )
 
-    def _style_polar_axes(self, ax: plt.Axes, duration: float) -> None:
+    def _style_polar_axes(self, ax: Axes, duration: float) -> None:
         """
         Apply styling for polar spectrogram axes.
 
@@ -363,7 +370,7 @@ class SpectrogramGenerator:
             ax.grid(False)
             ax.spines["polar"].set_visible(False)  # Remove outline
 
-    def _save_figure(self, fig: plt.Figure, output_path: str) -> None:
+    def _save_figure(self, fig: Figure, output_path: str) -> None:
         """
         Save figure with proper formatting.
 
@@ -372,8 +379,8 @@ class SpectrogramGenerator:
             output_path: Where to save the output image
         """
         # Ensure output directory exists
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path_obj = Path(output_path)
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
 
         # Determine transparency
         transparent = self.config.background == "transparent"
@@ -381,7 +388,7 @@ class SpectrogramGenerator:
         # Save based on format
         if self.config.output_format.lower() == "jpg":
             plt.savefig(
-                output_path,
+                output_path_obj,
                 transparent=transparent,
                 format="jpg",
                 bbox_inches="tight",
@@ -390,7 +397,7 @@ class SpectrogramGenerator:
             )
         elif self.config.output_format.lower() == "png":
             plt.savefig(
-                output_path,
+                output_path_obj,
                 transparent=transparent,
                 format="png",
                 bbox_inches="tight",
@@ -398,7 +405,7 @@ class SpectrogramGenerator:
             )
         elif self.config.output_format.lower() == "svg":
             plt.savefig(
-                output_path,
+                output_path_obj,
                 transparent=transparent,
                 format="svg",
                 bbox_inches="tight",
